@@ -166,7 +166,6 @@
 > PSP 조기 감별 핵심 바이오마커: **수직 속도 저하**와 **수직 이동 범위 감소**
 
 <p align="center">
-  <img src="docs/img/eye_pipeline.png" alt="Vertical eye movement pipeline" width="720">
 </p>
 
 **입력**
@@ -190,7 +189,6 @@
 > 브래디키네시아 정량화: **속도, 진폭, 리듬 안정성, 감쇠(decrement), 주저/중단**
 
 <p align="center">
-  <img src="docs/img/finger_pipeline.png" alt="Finger tapping pipeline" width="720">
 </p>
 
 **입력**
