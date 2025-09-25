@@ -160,10 +160,62 @@
  - 시선 추적, 손가락 부딪치기 데이터 수집 및 추출에는 **Mediapipe** 라이브러리를 활용했습니다.
  - 음성 분석 모델은 3개의 Machine Learning 모델 구조를 병합한 Multi-Branch Model 구조입니다.
 
-## 🛠️ My Work
+## 🛠️ We Work
 
-### 음성 모델 구현
-- CNN + BiGRU + MLP 로 구성된 Multi-Branch Model로 구현했습니다.
-- **CNN Branch - 시간-주파수 패턴 학습, BiGRU - 시간 흐름(발성 주기)양방향 요약, 음성 피치/에너지 등 요약 통계를 보완 특징으로 사용**
-- 해당 구성을 통해 CNN, RNN, MLP가 서로 다른 단서를 학습(공간 패턴, 시간 동역햑, 요약 통계)하여 **단일 브랜치 대비 견고성과 분별력이 향상**됩니다.
-- 최종 결과는 2-Layer MLP구조를 가진 분류 헤드를 통해 2가지의 유형(HC, MSA)군을 분류합니다.
+### 👀 수직 안구 운동 모델 구현 (Vertical Oculomotor)
+> PSP 조기 감별 핵심 바이오마커: **수직 속도 저하**와 **수직 이동 범위 감소**
+
+<p align="center">
+  <img src="docs/img/eye_pipeline.png" alt="Vertical eye movement pipeline" width="720">
+</p>
+
+**입력**
+- 스마트폰 전면 카메라 동영상(.mp4), 정면 자세에서 **정↔상↔하** 시선 전환 5회
+
+**처리 파이프라인**
+1) MediaPipe Face Mesh → **홍채 좌표(LEFT/RIGHT IRIS)** 추출  
+2) 눈높이 정규화: `v_offset_norm = (iy - cy) / eye_height`  
+3) 잡음 정리(Q1~Q3 IQR 클리핑, blinks 제외), 윈도잉  
+4) 핵심 지표 계산  
+   - **수직 peak-to-peak 범위 (vPP)**: vertical peak-to-peak  
+   - **평균 수직 속도 (deg/s)**, **평균 수평 속도 (deg/s)**  
+   - **blink rate**, **latency(ms)**  
+5) 룰+모델 혼합 판정  
+   - `vPP < θ_vpp` 또는 `mean_v_deg < θ_v` → PSP 의심  
+   - 보조 분류기(로지스틱/LightGBM): [vPP, v_deg, h_deg, latency, blink] → (HC vs PSP)
+
+---
+
+### ✋ 손가락 부딪치기 모델 구현 (Finger Tapping)
+> 브래디키네시아 정량화: **속도, 진폭, 리듬 안정성, 감쇠(decrement), 주저/중단**
+
+<p align="center">
+  <img src="docs/img/finger_pipeline.png" alt="Finger tapping pipeline" width="720">
+</p>
+
+**입력**
+- 스마트폰 후면/전면 카메라 동영상, **엄지-검지 탭 10회** (좌/우 손 각각)
+
+**특징 추출 (MediaPipe Hands)**
+- 거리 시계열 `d(t) = ||thumb_tip - index_tip||`
+- 파생 지표:
+  - **Amplitude(mean/var, slopes, decrement)**  
+  - **Velocity(mean/var, slopes)**  
+  - **Frequency(taps/s), Peaks(count)**  
+  - **Halts & Hesitations(#)**  
+  - **Rhythm stability(Period var)**  
+
+**모델**
+- 전처리: 표준화(StandardScaler) + 범주형(손/측) 원-핫
+- 학습: LightGBM / AdaBoost / CNN-GRU(시계열)
+- 출력:
+  - (1) **이진/다중 분류**: HC vs PD (or UPDRS 0–3+)  
+  - (2) **스코어 회귀**: 예측 UPDRS(3.4) 점수
+
+### 🔊 음성 모델 구현
+- CNN + BiGRU + MLP를 결합한 **Multi-Branch Model**로 구현했습니다.  
+- **CNN Branch**: 시간-주파수 영역의 스펙트로그램 패턴을 학습  
+- **BiGRU Branch**: 발성 주기의 흐름을 양방향으로 요약해 시계열적 특성을 포착  
+- **MLP Branch**: 피치, 에너지 등 요약 통계적 특성을 보완적으로 활용  
+- 세 가지 브랜치가 **공간 패턴, 시간 동역학, 통계 지표**라는 서로 다른 단서를 학습하여 단일 브랜치 모델 대비 **견고성과 분별력**이 향상됩니다.  
+- 최종 출력은 **2-Layer MLP 분류 헤드**를 통해 **2가지 유형(HC, MSA)**으로 분류합니다.  
