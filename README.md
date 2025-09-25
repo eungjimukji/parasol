@@ -163,52 +163,25 @@
 ## 🛠️ We Work
 
 ### 👀 수직 안구 운동 모델 구현 (Vertical Oculomotor)
-> PSP 조기 감별 핵심 바이오마커: **수직 속도 저하**와 **수직 이동 범위 감소**
-
-<p align="center">
-</p>
-
-**입력**
-- 스마트폰 전면 카메라 동영상(.mp4), 정면 자세에서 **상↔하** 시선 전환 5회
-
-**처리 파이프라인**
-1) MediaPipe Face Mesh → **홍채 좌표(LEFT/RIGHT IRIS)** 추출  
-2) 눈높이 정규화: `v_offset_norm = (iy - cy) / eye_height`  
-3) 잡음 정리(Q1~Q3 IQR 클리핑, blinks 제외), 윈도잉  
-4) 핵심 지표 계산  
-   - **수직 peak-to-peak 범위 (vPP)**: vertical peak-to-peak  
-   - **평균 수직 속도 (deg/s)**, **평균 수평 속도 (deg/s)**  
-   - **blink rate**, **latency(ms)**  
-5) 룰+모델 혼합 판정  
-   - `vPP < θ_vpp` 또는 `mean_v_deg < θ_v` → PSP 의심  
-   - 보조 분류기(로지스틱/LightGBM): [vPP, v_deg, h_deg, latency, blink] → (HC vs PSP)
+- MediaPipe 기반의 **안구 추적 모델**로 구현했습니다.  
+- **홍채 좌표 추출(LEFT/RIGHT IRIS)**: 상↔하 시선 전환 시 궤적 추적  
+- **정규화 단계**: 눈높이 대비 위치 변환(v_offset_norm)으로 개인차 보정  
+- **핵심 지표**: 수직 peak-to-peak(vPP), 평균 수직/수평 속도, blink rate, latency(ms)  
+- **모델 구성**: 룰 기반 임계값(vPP, mean_v_deg) + 보조 분류기(Logistic, LightGBM) 결합  
+- 이러한 구조를 통해 PSP 환자에서 특징적으로 나타나는 **수직 속도 저하 및 이동 범위 감소**를 정량화하여 **HC vs PSP** 감별 성능을 향상시켰습니다.  
 
 ---
 
 ### ✋ 손가락 부딪치기 모델 구현 (Finger Tapping)
-> 브래디키네시아 정량화: **속도, 진폭, 리듬 안정성, 감쇠(decrement), 주저/중단**
-
-<p align="center">
-</p>
-
-**입력**
-- 스마트폰 후면/전면 카메라 동영상, **엄지-검지 탭 10회** (좌/우 손 각각)
-
-**특징 추출 (MediaPipe Hands)**
-- 거리 시계열 `d(t) = ||thumb_tip - index_tip||`
-- 파생 지표:
-  - **Amplitude(mean/var, slopes, decrement)**  
-  - **Velocity(mean/var, slopes)**  
-  - **Frequency(taps/s), Peaks(count)**  
-  - **Halts & Hesitations(#)**  
-  - **Rhythm stability(Period var)**  
-
-**모델**
-- 전처리: 표준화(StandardScaler) + 범주형(손/측) 원-핫
-- 학습: LightGBM / AdaBoost / CNN-GRU(시계열)
-- 출력:
-  - (1) **이진/다중 분류**: HC vs PD (or UPDRS 0–3+)  
-  - (2) **스코어 회귀**: 예측 UPDRS(3.4) 점수
+- MediaPipe 기반의 **손가락 랜드마크 추적 모델**로 구현했습니다.  
+- **입력 데이터**: 스마트폰 카메라 영상, 엄지-검지 탭 10회 (좌/우 손 각각)  
+- **시계열 특징 추출**: 손가락 거리 시계열 `d(t)`로부터 주요 지표 산출  
+  - Amplitude(mean/var, slope, decrement)  
+  - Velocity(mean/var, slope)  
+  - Frequency(taps/s), Peaks(count)  
+  - Halts & Hesitations, Rhythm stability  
+- **모델 구성**: 전처리(StandardScaler + One-hot) 후 LightGBM, AdaBoost, CNN-GRU 적용  
+- 이렇게 도출된 속도·진폭·리듬 지표를 기반으로 **브래디키네시아를 정량화**하며, 최종 출력은 **2-Layer 분류 헤드**를 통해 **HC vs PD**으로 분류합니다.  
 
 ---
 
@@ -218,4 +191,4 @@
 - **BiGRU Branch**: 발성 주기의 흐름을 양방향으로 요약해 시계열적 특성을 포착  
 - **MLP Branch**: 피치, 에너지 등 요약 통계적 특성을 보완적으로 활용  
 - 세 가지 브랜치가 **공간 패턴, 시간 동역학, 통계 지표**라는 서로 다른 단서를 학습하여 단일 브랜치 모델 대비 **견고성과 분별력**이 향상됩니다.  
-- 최종 출력은 **2-Layer MLP 분류 헤드**를 통해 **2가지 유형(HC, MSA)**으로 분류합니다.  
+- 최종 출력은 **2-Layer MLP 분류 헤드**를 통해 **HC, MSA**으로 분류합니다.  
